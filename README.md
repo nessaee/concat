@@ -1,85 +1,111 @@
 # concat
 
-`concat` (v1.0.1) is a high-performance, cross-platform CLI tool designed to aggregate project files into a single text block. It is specifically engineered to streamline the process of gathering code context for Large Language Models (LLMs).
+![Version](https://img.shields.io/github/v/release/nessaee/concat?style=flat-square)
+![Go Version](https://img.shields.io/github/go-mod/go-version/nessaee/concat?style=flat-square)
+![License](https://img.shields.io/github/license/nessaee/concat?style=flat-square)
+
+**concat** is a high-performance, cross-platform CLI tool engineered to aggregate project source code into a single, formatted text block. It is designed specifically for developers who need to provide code context to Large Language Models (LLMs) or share code snippets efficiently.
 
 ## Features
 
-- **Recursive Traversal:** Efficiently walks directory trees.
-- **Smart Filtering:** Respects `.gitignore` (recursively) and default ignore patterns (e.g., `node_modules`, `.git`).
-- **Clipboard Integration:** Automatically copies the output to your system clipboard (supports Linux, macOS, Windows, and WSL).
-- **Tree Visualization:** Generates a visual directory tree to provide structural context.
-- **Single Binary:** No dependencies required; runs as a static binary.
+- 🚀 **High Performance:** Built with Go for blazing fast recursive directory traversal.
+- 🛡️ **Smart Filtering:** Automatically respects `.gitignore` files (nested and root) and filters out common noise (e.g., `node_modules`, `.git`, build artifacts).
+- 📋 **Clipboard Integration:** Automatically copies output to the system clipboard on Linux, macOS, and Windows.
+- 🌳 **Tree Context:** Optionally generates a visual directory tree to preserve structural context for the LLM.
+- 📦 **Zero Dependency:** Distributed as a single static binary.
 
 ## Installation
 
-### From Source (Go)
-
-If you have Go 1.21+ installed:
+### Option 1: Go Install (Recommended for Developers)
+If you have Go 1.22+ installed, this is the easiest way to get the latest version.
 
 ```bash
 go install github.com/nessaee/concat/cmd/concat@latest
 ```
+*Ensure that your Go bin directory (`$(go env GOPATH)/bin`) is in your system's `PATH`.*
 
-### Manual Installation (Linux)
+### Option 2: Binary Download
+Download the pre-compiled binary for your operating system from the [Releases Page](https://github.com/nessaee/concat/releases/latest).
 
-1.  Build the project:
-    ```bash
-    git clone <repo_url>
-    cd concat
-    go build -ldflags="-s -w" -o concat cmd/concat/main.go
-    ```
-2.  Move to your path:
-    ```bash
-    sudo mv concat /usr/local/bin/
-    ```
+**Linux / macOS:**
+1. Download the `.tar.gz` archive.
+2. Extract the binary: `tar -xzf concat_*.tar.gz`
+3. Move it to your path: `sudo mv concat /usr/local/bin/`
+
+**Windows:**
+1. Download the `.zip` archive.
+2. Extract `concat.exe`.
+3. Place it in a folder included in your system `PATH`.
+
+### Option 3: Build from Source
+```bash
+git clone https://github.com/nessaee/concat.git
+cd concat
+go build -ldflags="-s -w" -o concat cmd/concat/main.go
+```
+
+## Platform Specifics
+
+### Linux
+`concat` relies on standard system tools for clipboard access. Please ensure one of the following is installed:
+- **Wayland:** `wl-clipboard` (`sudo apt install wl-clipboard`)
+- **X11:** `xclip` or `xsel` (`sudo apt install xclip`)
+
+### WSL (Windows Subsystem for Linux)
+`concat` supports WSL by piping output to the Windows clipboard via `clip.exe` automatically if native Linux tools are missing.
 
 ## Usage
 
+The basic syntax is:
 ```bash
 concat -p <extension> [flags]
 ```
 
-### Flags
+### Common Flags
 
-| Flag | Description | Example |
-|------|-------------|---------|
-| `-p, --pattern` | **Required.** File extensions to include (no dot needed). Can be repeated. | `-p go -p md` |
-| `-i, --ignore` | Glob pattern to ignore (files or directories). Can be repeated. | `-i "test/*" -i "*.log"` |
-| `-t, --tree` | Include a visual directory tree at the top of the output. | `-t` |
-| `-o, --output` | Write output to a file instead of the clipboard. | `-o context.txt` |
-| `-h, --help` | Show help message. | |
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--pattern` | `-p` | **Required.** File extension to include (e.g., `go`, `py`, `js`). Can be repeated. |
+| `--ignore` | `-i` | Glob pattern to ignore (e.g., `tests/*`, `*.log`). Can be repeated. |
+| `--tree` | `-t` | Prepend a visual directory tree structure to the output. |
+| `--output` | `-o` | Write result to a file instead of the clipboard. |
+| `--help` | `-h` | Show help message. |
 
 ### Examples
 
-**1. Prepare context for a Go project:**
-Captures all `.go` and `.mod` files, includes the directory structure, and copies to clipboard.
+**1. The "LLM Context" Run**
+Grab all Go source files and the `go.mod` file, include the directory tree for context, and copy to clipboard.
 ```bash
 concat -p go -p mod -t
 ```
 
-**2. Analyze a React/TypeScript project:**
-Captures `.ts`, `.tsx`, and `.css` files, ignoring the `tests` directory.
+**2. Frontend Project**
+Grab TypeScript and CSS files, but ignore the `tests` folder and `stories` files.
 ```bash
-concat -p ts -p tsx -p css -i "tests/*"
+concat -p ts -p tsx -p css -i "tests/*" -i "*.stories.tsx"
 ```
 
-**3. Save Python scripts to a file:**
+**3. Export to File**
+Useful for archiving or processing with other tools.
 ```bash
-concat -p py -o output.txt
+concat -p py -o codebase.txt
 ```
 
-## Configuration
+## Default Behavior
 
-`concat` automatically respects your `.gitignore` files. It also has built-in defaults to ignore common noise:
-- `.git`, `node_modules`, `__pycache__`, `.venv`, `target`, `dist`, `build`
-- `*.log`, `*.lock`, `*.swp`, `.DS_Store`
+By default, `concat` enforces these ignore patterns to keep your context clean:
+- **Directories:** `.git`, `node_modules`, `__pycache__`, `.venv`, `venv`, `target`, `dist`, `build`
+- **Files:** `*.log`, `*.lock`, `*.swp`, `.DS_Store`, `*.exe`, `*.dll`, `*.so`
 
-## Development
+*It also respects any `.gitignore` files found during traversal.*
 
-### Build Locally
-```bash
-go build -o concat cmd/concat/main.go
-```
+## Contributing
 
-### Run Tests
-*Coming soon.*
+1. Fork the repository.
+2. Create your feature branch (`git checkout -b feature/amazing-feature`).
+3. Commit your changes.
+4. Push to the branch.
+5. Open a Pull Request.
+
+---
+*Released under the MIT License.*
