@@ -1,6 +1,6 @@
 # concat
 
-`concat` (v1.0.0) is a high-performance, cross-platform CLI tool designed to aggregate project files into a single text block. It is specifically engineered to streamline the process of gathering code context for Large Language Models (LLMs).
+`concat` (v1.0.1) is a high-performance, cross-platform CLI tool designed to aggregate project files into a single text block. It is specifically engineered to streamline the process of gathering code context for Large Language Models (LLMs).
 
 ## Features
 
