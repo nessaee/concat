@@ -1,4 +1,4 @@
-module concat
+module github.com/nessaee/concat
 
 go 1.22
 

@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"concat/internal/config"
-	"concat/internal/core"
-	"concat/internal/infra"
+	"github.com/nessaee/concat/internal/config"
+	"github.com/nessaee/concat/internal/core"
+	"github.com/nessaee/concat/internal/infra"
 )
 
 // Run is the main application entry point
