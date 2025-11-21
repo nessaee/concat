@@ -2,7 +2,7 @@
 
 ![Version](https://img.shields.io/github/v/release/nessaee/concat?style=flat-square)
 ![Go Version](https://img.shields.io/github/go-mod/go-version/nessaee/concat?style=flat-square)
-![License](https://img.shields.io/github/license/nessaee/concat?style=flat-square)
+![License](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)
 
 **concat** is a high-performance, cross-platform CLI tool engineered to aggregate project source code into a single, formatted text block. It is designed specifically for developers who need to provide code context to Large Language Models (LLMs) or share code snippets efficiently.
 
@@ -107,5 +107,6 @@ By default, `concat` enforces these ignore patterns to keep your context clean:
 4. Push to the branch.
 5. Open a Pull Request.
 
----
-*Released under the MIT License.*
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
