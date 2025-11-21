@@ -17,10 +17,8 @@
 If you have Go 1.21+ installed:
 
 ```bash
-go install github.com/yourusername/concat/cmd/concat@latest
+go install github.com/nessaee/concat/cmd/concat@latest
 ```
-
-*(Note: Replace `yourusername` with your actual GitHub username if you push this).*
 
 ### Manual Installation (Linux)
 
