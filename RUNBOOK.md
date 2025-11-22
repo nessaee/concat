@@ -1,39 +1,46 @@
-# concat Developer Runbook
+# concat & opt Developer Runbook
 
-This runbook distills the essential workflows for developing, building, and releasing the `concat` tool.
+This runbook distills the essential workflows for developing, building, and releasing the `concat` suite.
 
 ## 1. Local Development & Testing
 
-**Build binary:**
+**Build binaries:**
 ```bash
+# Build both tools
 go build -o concat cmd/concat/main.go
+go build -o opt cmd/opt/main.go
 ```
 
-**Run from source:**
+**Run from source (Pipeline):**
 ```bash
-go run cmd/concat/main.go -p go
+go run cmd/concat/main.go -p go | go run cmd/opt/main.go -c
 ```
 
-**Run Tests:**
+**Run Unit Tests:**
 ```bash
 go test ./...
 ```
 
+**Run E2E Tests (Integration):**
+This compiles fresh binaries and tests the pipe logic.
+```bash
+go test -v ./tests/...
+```
+
 ## 2. Installation (Local)
 
-To make `concat` accessible globally on your machine:
+To make the suite accessible globally on your machine:
 
 ```bash
-# 1. Build optimized binary
-CGO_ENABLED=0 go build -ldflags="-s -w" -o concat cmd/concat/main.go
-
-# 2. Move to path (requires ~/.local/bin to be in $PATH)
-mv concat ~/.local/bin/
+# Install both tools to $GOPATH/bin
+go install ./cmd/concat
+go install ./cmd/opt
 ```
 
 **Verify:**
 ```bash
 concat --help
+opt --help
 ```
 
 ## 3. Release Process (GoReleaser)
@@ -73,10 +80,10 @@ concat --help
 
 To minimize token usage when feeding LLMs (like Gemini or Claude), follow these guidelines:
 
-**1. Use `--compact`:**
-Strip excessive whitespace.
+**1. Use `opt` (Companion Tool):**
+Strip excessive whitespace and headers.
 ```bash
-concat -p go --compact
+concat -p go | opt --compact --strip-headers
 ```
 
 **2. Skip the Tree:**
