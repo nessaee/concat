@@ -17,7 +17,7 @@ func main() {
 	rootCmd := &cobra.Command{
 		Use:   "concat",
 		Short: "Concatenates project files for LLM context",
-		Long: `Project Concatenator v1.0.1
+		Long: `Project Concatenator v1.0.2
 Concatenates project files and copies the result to the clipboard or a file.
 Designed for easily grabbing project context for LLMs.`,
 		Run: func(cmd *cobra.Command, args []string) {
@@ -40,6 +40,7 @@ Designed for easily grabbing project context for LLMs.`,
 	rootCmd.PersistentFlags().StringSliceVarP(&cfg.IgnorePatterns, "ignore", "i", []string{}, "Ignore files or directories matching this pattern. Can be used multiple times.")
 	rootCmd.PersistentFlags().StringVarP(&cfg.Output, "output", "o", "", "Output to a file instead of the clipboard.")
 	rootCmd.PersistentFlags().BoolVarP(&cfg.IncludeTree, "tree", "t", false, "Include a directory tree structure at the top of the output.")
+	rootCmd.PersistentFlags().BoolVarP(&cfg.UseXML, "xml", "x", false, "Format output in XML (<file path='...'>) instead of Markdown.")
     
     // Version flag is automatic with Cobra if we set Version field, but let's leave it for now.
 

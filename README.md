@@ -4,7 +4,7 @@
 ![Go Version](https://img.shields.io/github/go-mod/go-version/nessaee/concat?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)
 
-**concat** is a high-performance, cross-platform CLI tool engineered to aggregate project source code into a single, formatted text block. It is designed specifically for developers who need to provide code context to Large Language Models (LLMs) or share code snippets efficiently.
+**concat** (v1.0.2) is a high-performance, cross-platform CLI tool engineered to aggregate project source code into a single, formatted text block. It is designed specifically for developers who need to provide code context to Large Language Models (LLMs) or share code snippets efficiently.
 
 ## Features
 
