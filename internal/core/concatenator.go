@@ -29,7 +29,9 @@ func NewConcatenator(filter *Filter, cfg *config.Config, formatter protocol.Form
 // Process walks the directory and returns the formatted content
 func (c *Concatenator) Process(root string, w io.Writer) (int, int64, error) {
 	var count int
-	var totalSize int64
+
+	// Wrap the writer
+	cw := &CountingWriter{Writer: w}
 
 	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
@@ -61,11 +63,6 @@ func (c *Concatenator) Process(root string, w io.Writer) (int, int64, error) {
 		}
 
 		if !d.IsDir() {
-			info, err := d.Info()
-			if err != nil {
-				return err
-			}
-
 			// Open file instead of ReadFile
 			file, err := os.Open(path)
 			if err != nil {
@@ -91,21 +88,32 @@ func (c *Concatenator) Process(root string, w io.Writer) (int, int64, error) {
 				return fmt.Errorf("failed to seek %s: %w", path, err)
 			}
 
-			c.formatter.WriteHeader(w, relPath)
+			c.formatter.WriteHeader(cw, relPath)
 
 			// Copy content to writer
-			if _, err := io.Copy(w, file); err != nil {
+			if _, err := io.Copy(cw, file); err != nil {
 				return fmt.Errorf("failed to copy content of %s: %w", path, err)
 			}
 
-			c.formatter.WriteFooter(w)
+			c.formatter.WriteFooter(cw)
 
 			count++
-			totalSize += info.Size()
 		}
 
 		return nil
 	})
 
-	return count, totalSize, err
+	return count, cw.Count, err
+}
+
+// CountingWriter wraps an io.Writer and counts bytes written
+type CountingWriter struct {
+	Writer io.Writer
+	Count  int64
+}
+
+func (cw *CountingWriter) Write(p []byte) (int, error) {
+	n, err := cw.Writer.Write(p)
+	cw.Count += int64(n)
+	return n, err
 }
