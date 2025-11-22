@@ -6,4 +6,5 @@ type Config struct {
 	Output         string
 	IncludeTree    bool
 	UseXML         bool
+	PrintToStdout  bool
 }

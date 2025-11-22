@@ -85,11 +85,11 @@ func (f *Filter) IsIgnored(path string, isDir bool) bool {
 		if m.MatchesPath(path) {
 			return true
 		}
-        if isDir {
-            if m.MatchesPath(path + "/") {
-                return true
-            }
-        }
+		if isDir {
+			if m.MatchesPath(path + "/") {
+				return true
+			}
+		}
 	}
 	return false
 }

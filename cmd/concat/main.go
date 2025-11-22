@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/spf13/cobra"
 	"github.com/nessaee/concat/internal/app"
 	"github.com/nessaee/concat/internal/config"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -22,9 +22,9 @@ Concatenates project files and copies the result to the clipboard or a file.
 Designed for easily grabbing project context for LLMs.`,
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(cfg.Extensions) == 0 {
-                // Fail if no extensions provided, matching original script behavior
+				// Fail if no extensions provided, matching original script behavior
 				fmt.Println("Error: You must specify at least one file type to include with -p.")
-                cmd.Usage()
+				cmd.Usage()
 				os.Exit(1)
 			}
 
@@ -41,8 +41,9 @@ Designed for easily grabbing project context for LLMs.`,
 	rootCmd.PersistentFlags().StringVarP(&cfg.Output, "output", "o", "", "Output to a file instead of the clipboard.")
 	rootCmd.PersistentFlags().BoolVarP(&cfg.IncludeTree, "tree", "t", false, "Include a directory tree structure at the top of the output.")
 	rootCmd.PersistentFlags().BoolVarP(&cfg.UseXML, "xml", "x", false, "Format output in XML (<file path='...'>) instead of Markdown.")
-    
-    // Version flag is automatic with Cobra if we set Version field, but let's leave it for now.
+	rootCmd.PersistentFlags().BoolVarP(&cfg.PrintToStdout, "stdout", "s", false, "Print output to stdout instead of clipboard.")
+
+	// Version flag is automatic with Cobra if we set Version field, but let's leave it for now.
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
