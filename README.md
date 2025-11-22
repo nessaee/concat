@@ -4,7 +4,7 @@
 ![Go Version](https://img.shields.io/github/go-mod/go-version/nessaee/concat?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)
 
-**concat** (v0.1.2) is a high-performance CLI suite designed to prepare codebases for Large Language Models (LLMs). It consists of two powerful tools that follow the Unix Philosophy:
+**concat** (v0.1.3) is a high-performance CLI suite designed to prepare codebases for Large Language Models (LLMs). It consists of two powerful tools that follow the Unix Philosophy:
 
 1.  **`concat` (The Gatherer):** Blazing fast directory traversal, file gathering, and `.gitignore` filtering.
 2.  **`opt` (The Refiner):** Semantic stream optimizer for token reduction, cost estimation, and privacy/license stripping.
@@ -79,6 +79,7 @@ concat -p py | opt --cost > /dev/null
 | `--compact` | `-c` | Reduce vertical whitespace. |
 | `--strip-headers` | | Remove copyright/license headers. |
 | `--cost` | | Print estimated token count and cost to stderr. |
+| `--stdout` | `-s` | Force print to stdout instead of clipboard. |
 
 ## Default Behavior
 

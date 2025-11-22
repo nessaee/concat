@@ -17,7 +17,7 @@ func main() {
 	rootCmd := &cobra.Command{
 		Use:   "concat",
 		Short: "Concatenates project files for LLM context",
-		Long: `Project Concatenator v0.1.2
+		Long: `Project Concatenator v0.1.3
 Concatenates project files and copies the result to the clipboard or a file.
 Designed for easily grabbing project context for LLMs.`,
 		Run: func(cmd *cobra.Command, args []string) {

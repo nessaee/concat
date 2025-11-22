@@ -61,10 +61,10 @@ opt --help
     Creates a tag, pushes it, and publishes binaries to GitHub Releases.
     ```bash
     # 1. Tag the version
-    git tag -a v0.1.2 -m "Release v0.1.2"
+    git tag -a v0.1.3 -m "Release v0.1.3"
 
     # 2. Push tag
-    git push origin v0.1.2
+    git push origin v0.1.3
 
     # 3. Release
     goreleaser release --clean
