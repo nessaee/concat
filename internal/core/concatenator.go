@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/nessaee/concat/internal/config"
+	"github.com/nessaee/concat/internal/protocol"
 )
 
 // Concatenator handles finding and reading files
@@ -66,13 +67,21 @@ func (c *Concatenator) Process(root string) (string, int, int64, error) {
 				return fmt.Errorf("failed to read %s: %w", path, err)
 			}
 
+			// Binary Check: Skip files that look binary to save tokens and avoid garbage output
+			if isBinary(content) {
+				fmt.Fprintf(os.Stderr, "⚠ Skipping binary file: %s\n", relPath)
+				return nil
+			}
+
+			contentStr := string(content)
+
 			if c.config.UseXML {
-				sb.WriteString(fmt.Sprintf("<file path=\"%s\">\n", relPath))
-				sb.Write(content)
-				sb.WriteString("\n</file>\n")
+				sb.WriteString(protocol.FormatHeaderXML(relPath) + "\n")
+				sb.WriteString(contentStr)
+				sb.WriteString("\n" + protocol.MarkerXMLEnd + "\n")
 			} else {
-				sb.WriteString(fmt.Sprintf("### File: %s ###\n", relPath))
-				sb.Write(content)
+				sb.WriteString(protocol.FormatHeaderMD(relPath) + "\n")
+				sb.WriteString(contentStr)
 				sb.WriteString("\n\n---\n\n")
 			}
 

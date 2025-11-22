@@ -1,104 +1,90 @@
-# concat
+# concat & opt
 
 ![Version](https://img.shields.io/github/v/release/nessaee/concat?style=flat-square)
 ![Go Version](https://img.shields.io/github/go-mod/go-version/nessaee/concat?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)
 
-**concat** (v1.1.0) is a high-performance, cross-platform CLI tool engineered to aggregate project source code into a single, formatted text block. It is designed specifically for developers who need to provide code context to Large Language Models (LLMs) or share code snippets efficiently.
+**concat** (v0.1.0) is a high-performance CLI suite designed to prepare codebases for Large Language Models (LLMs). It consists of two powerful tools that follow the Unix Philosophy:
+
+1.  **`concat` (The Gatherer):** Blazing fast directory traversal, file gathering, and `.gitignore` filtering.
+2.  **`opt` (The Refiner):** Semantic stream optimizer for token reduction, cost estimation, and privacy/license stripping.
 
 ## Features
 
-- 🚀 **High Performance:** Built with Go for blazing fast recursive directory traversal.
-- 🛡️ **Smart Filtering:** Automatically respects `.gitignore` files (nested and root) and filters out common noise (e.g., `node_modules`, `.git`, build artifacts).
-- 📋 **Clipboard Integration:** Automatically copies output to the system clipboard on Linux, macOS, and Windows.
-- 🌳 **Tree Context:** Optionally generates a visual directory tree to preserve structural context for the LLM.
-- 📦 **Zero Dependency:** Distributed as a single static binary.
+- 🚀 **High Performance:** Built with Go for instant result on massive repos.
+- 🛡️ **Smart Filtering:** Automatically respects `.gitignore`, excludes binary files, and offers strict inclusion lists.
+- 📉 **Cost Estimation:** `opt` calculates estimated token count and API cost (Gemini Flash pricing).
+- 🧹 **Context Optimization:** `opt` strips excess whitespace and corporate license headers to save context window.
+- 📋 **Clipboard Integration:** `concat` copies to clipboard by default on all platforms.
 
 ## Installation
 
-### Option 1: Go Install (Recommended for Developers)
-If you have Go 1.22+ installed, this is the easiest way to get the latest version.
+### Go Install (Recommended)
+
+You can install both tools with a single command:
 
 ```bash
 go install github.com/nessaee/concat/cmd/concat@latest
-```
-*Ensure that your Go bin directory (`$(go env GOPATH)/bin`) is in your system's `PATH`.*
-
-### Option 2: Binary Download
-Download the pre-compiled binary for your operating system from the [Releases Page](https://github.com/nessaee/concat/releases/latest).
-
-**Linux / macOS:**
-1. Download the `.tar.gz` archive.
-2. Extract the binary: `tar -xzf concat_*.tar.gz`
-3. Move it to your path: `sudo mv concat /usr/local/bin/`
-
-**Windows:**
-1. Download the `.zip` archive.
-2. Extract `concat.exe`.
-3. Place it in a folder included in your system `PATH`.
-
-### Option 3: Build from Source
-```bash
-git clone https://github.com/nessaee/concat.git
-cd concat
-go build -ldflags="-s -w" -o concat cmd/concat/main.go
+go install github.com/nessaee/concat/cmd/opt@latest
 ```
 
-## Platform Specifics
-
-### Linux
-`concat` relies on standard system tools for clipboard access. Please ensure one of the following is installed:
-- **Wayland:** `wl-clipboard` (`sudo apt install wl-clipboard`)
-- **X11:** `xclip` or `xsel` (`sudo apt install xclip`)
-
-### WSL (Windows Subsystem for Linux)
-`concat` supports WSL by piping output to the Windows clipboard via `clip.exe` automatically if native Linux tools are missing.
+### Binary Download
+Download pre-compiled binaries from the [Releases Page](https://github.com/nessaee/concat/releases/latest).
 
 ## Usage
 
-The basic syntax is:
+### 1. The "Power Pipe" (Recommended)
+Combine both tools for the ultimate LLM context preparation workflow. This pipeline finds files, minimizes them, strips noise, and estimates cost.
+
 ```bash
-concat -p <extension> [flags]
+# Gather Go files -> Optimize content -> Output to stdout
+concat -p go | opt --compact --strip-headers
 ```
 
-### Common Flags
+### 2. `concat` (Gatherer)
+Standalone usage for simple file aggregation.
 
+```bash
+# Syntax
+concat -p <extension> [flags]
+
+# Example: Copy all JS/TS files to clipboard (ignoring tests)
+concat -p js -p ts --no-tests
+```
+
+**Common Flags:**
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--pattern` | `-p` | **Required.** File extension to include (e.g., `go`, `py`, `js`). Can be repeated. |
-| `--ignore` | `-i` | Glob pattern to ignore (e.g., `tests/*`, `*.log`). Can be repeated. |
-| `--tree` | `-t` | Prepend a visual directory tree structure to the output. |
-| `--output` | `-o` | Write result to a file instead of the clipboard. |
-| `--stdout` | `-s` | Print output to stdout instead of clipboard. |
-| `--help` | `-h` | Show help message. |
+| `--pattern` | `-p` | **Required.** Extension to include (e.g., `go`, `py`). |
+| `--ignore` | `-i` | Glob pattern to ignore (e.g., `tests/*`). |
+| `--no-tests`| `-n` | Exclude test files (`_test.go`, `.spec.ts`, etc). |
+| `--tree` | `-t` | Include directory tree at the top. |
+| `--output` | `-o` | Write to file. |
+| `--stdout` | `-s` | Force print to stdout (auto-detected in pipes). |
 
-### Examples
+### 3. `opt` (Refiner)
+Standalone usage for stream optimization.
 
-**1. The "LLM Context" Run**
-Grab all Go source files and the `go.mod` file, include the directory tree for context, and copy to clipboard.
 ```bash
-concat -p go -p mod -t
+# Syntax
+cat file.txt | opt [flags]
+
+# Example: Check cost of a file without outputting it
+concat -p py | opt --cost > /dev/null
 ```
 
-**2. Frontend Project**
-Grab TypeScript and CSS files, but ignore the `tests` folder and `stories` files.
-```bash
-concat -p ts -p tsx -p css -i "tests/*" -i "*.stories.tsx"
-```
-
-**3. Export to File**
-Useful for archiving or processing with other tools.
-```bash
-concat -p py -o codebase.txt
-```
+**Common Flags:**
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--compact` | `-c` | Reduce vertical whitespace. |
+| `--strip-headers` | | Remove copyright/license headers. |
+| `--cost` | | Print estimated token count and cost to stderr. |
 
 ## Default Behavior
 
-By default, `concat` enforces these ignore patterns to keep your context clean:
-- **Directories:** `.git`, `node_modules`, `__pycache__`, `.venv`, `venv`, `target`, `dist`, `build`
-- **Files:** `*.log`, `*.lock`, `*.swp`, `.DS_Store`, `*.exe`, `*.dll`, `*.so`
-
-*It also respects any `.gitignore` files found during traversal.*
+`concat` is opinionated but flexible:
+- **Ignored by default:** `.git`, `node_modules`, `__pycache__`, `vendor`, lockfiles (`go.sum`, `yarn.lock`), and binaries.
+- **Override:** If you explicitly request a file type (e.g., `-p lock`), `concat` will fetch it even if it's usually ignored.
 
 ## Contributing
 

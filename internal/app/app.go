@@ -14,7 +14,7 @@ import (
 // Run is the main application entry point
 func Run(cfg *config.Config) error {
 	// 1. Initialize Filter
-	filter := core.NewFilter(cfg.Extensions, cfg.IgnorePatterns)
+	filter := core.NewFilter(cfg.Extensions, cfg.IgnorePatterns, cfg.ExcludeTests)
 
 	// 2. Initialize Components
 	concatenator := core.NewConcatenator(filter, cfg)
@@ -44,6 +44,10 @@ func Run(cfg *config.Config) error {
 	// 5. Process Files
 	fmt.Fprintln(os.Stderr, "> Searching for files to process...")
 	content, count, size, err := concatenator.Process(".")
+	if err != nil {
+		return fmt.Errorf("processing failed: %w", err)
+	}
+	outputBuilder += content
 	if err != nil {
 		return fmt.Errorf("processing failed: %w", err)
 	}

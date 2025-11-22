@@ -54,10 +54,10 @@ concat --help
     Creates a tag, pushes it, and publishes binaries to GitHub Releases.
     ```bash
     # 1. Tag the version
-    git tag -a v1.1.0 -m "Release v1.1.0"
+    git tag -a v0.1.0 -m "Release v0.1.0"
 
     # 2. Push tag
-    git push origin v1.1.0
+    git push origin v0.1.0
 
     # 3. Release
     goreleaser release --clean
@@ -68,3 +68,23 @@ concat --help
 *   **Clipboard issues (Linux):** Ensure `wl-copy` (Wayland) or `xclip` (X11) is installed.
     *   `sudo apt install wl-clipboard` or `sudo apt install xclip`
 *   **Permission Denied:** Ensure `~/.local/bin/concat` has execution permissions (`chmod +x ~/.local/bin/concat`).
+
+## 5. Optimization & Cost Saving
+
+To minimize token usage when feeding LLMs (like Gemini or Claude), follow these guidelines:
+
+**1. Use `--compact`:**
+Strip excessive whitespace.
+```bash
+concat -p go --compact
+```
+
+**2. Skip the Tree:**
+If you are using tools like `forge` or `files-to-prompt`, the XML/header structure is enough.
+```bash
+# EXPENSIVE (Redundant structure)
+concat -p go -t | forge
+
+# OPTIMIZED (Structure inferred from file paths)
+concat -p go | forge
+```
