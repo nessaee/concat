@@ -54,10 +54,10 @@ concat --help
     Creates a tag, pushes it, and publishes binaries to GitHub Releases.
     ```bash
     # 1. Tag the version
-    git tag -a v1.0.2 -m "Release v1.0.2"
+    git tag -a v1.1.0 -m "Release v1.1.0"
 
     # 2. Push tag
-    git push origin v1.0.2
+    git push origin v1.1.0
 
     # 3. Release
     goreleaser release --clean

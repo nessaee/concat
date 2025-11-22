@@ -43,12 +43,12 @@ func (t *TreeGenerator) generateRecursive(dir string, prefix string) (string, er
 	var filtered []os.DirEntry
 	for _, e := range entries {
 		path := filepath.Join(dir, e.Name())
-		
-        // Handle relative path for filter if possible, or assume relative execution
-        // If dir is ".", path is "foo".
-        // If dir is "foo", path is "foo/bar".
-        // This works for filter matchers usually.
-        
+
+		// Handle relative path for filter if possible, or assume relative execution
+		// If dir is ".", path is "foo".
+		// If dir is "foo", path is "foo/bar".
+		// This works for filter matchers usually.
+
 		if t.filter.IsIgnored(path, e.IsDir()) {
 			continue
 		}
