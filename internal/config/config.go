@@ -7,4 +7,5 @@ type Config struct {
 	IncludeTree    bool
 	UseXML         bool
 	PrintToStdout  bool
+	ExcludeTests   bool
 }

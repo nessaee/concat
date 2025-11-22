@@ -52,6 +52,14 @@ func (t *TreeGenerator) generateRecursive(dir string, prefix string) (string, er
 		if t.filter.IsIgnored(path, e.IsDir()) {
 			continue
 		}
+		
+		// NEW: Tree Pruning - Only show files that match requested extensions
+		if !e.IsDir() {
+			if !t.filter.HasValidExtension(e.Name()) {
+				continue
+			}
+		}
+
 		filtered = append(filtered, e)
 	}
 

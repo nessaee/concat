@@ -14,7 +14,7 @@ import (
 // Run is the main application entry point
 func Run(cfg *config.Config) error {
 	// 1. Initialize Filter
-	filter := core.NewFilter(cfg.Extensions, cfg.IgnorePatterns)
+	filter := core.NewFilter(cfg.Extensions, cfg.IgnorePatterns, cfg.ExcludeTests)
 
 	// 2. Initialize Components
 	concatenator := core.NewConcatenator(filter, cfg)
@@ -50,8 +50,16 @@ func Run(cfg *config.Config) error {
 	outputBuilder += content
 
 	// 6. Output
-	if cfg.PrintToStdout {
+	// Check if stdout is a pipe
+	stat, _ := os.Stdout.Stat()
+	isPipe := (stat.Mode() & os.ModeCharDevice) == 0
+
+	if cfg.PrintToStdout || isPipe {
 		fmt.Print(outputBuilder)
+		// Only print to stderr if NOT a pipe (or if user forced stdout)
+		// Actually, if we are piping, we definitely want the log to go to Stderr so it doesn't mix with output.
+		// But if the user simply ran `concat -s`, they might want to see the log.
+		// Let's print the log to Stderr always, as it's safe (won't corrupt the pipe).
 		estTokens := size / 4
 		fmt.Fprintf(os.Stderr, "✓ Output %d files (%d bytes, ~%d tokens) to stdout.\n", count, size, estTokens)
 	} else if cfg.Output != "" {

@@ -1,0 +1,710 @@
+---
+Project: concat
+Generated: Sat, 22 Nov 2025 16:03:22 CST
+---
+
+### File: cmd/concat/main.go ###
+package main
+
+import (
+	"fmt"
+	"os"
+
+	"github.com/nessaee/concat/internal/app"
+	"github.com/nessaee/concat/internal/config"
+	"github.com/spf13/cobra"
+)
+
+var (
+	cfg config.Config
+)
+
+func main() {
+	rootCmd := &cobra.Command{
+		Use:   "concat",
+		Short: "Concatenates project files for LLM context",
+		Long: `Project Concatenator v1.2.0
+Concatenates project files and copies the result to the clipboard or a file.
+Designed for easily grabbing project context for LLMs.`,
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(cfg.Extensions) == 0 {
+				// Fail if no extensions provided, matching original script behavior
+				fmt.Println("Error: You must specify at least one file type to include with -p.")
+				cmd.Usage()
+				os.Exit(1)
+			}
+
+			if err := app.Run(&cfg); err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+				os.Exit(1)
+			}
+		},
+	}
+
+	// Flags
+	rootCmd.PersistentFlags().StringSliceVarP(&cfg.Extensions, "pattern", "p", []string{}, "Include files with this extension (e.g., 'py', 'js'). Can be used multiple times.")
+	rootCmd.PersistentFlags().StringSliceVarP(&cfg.IgnorePatterns, "ignore", "i", []string{}, "Ignore files or directories matching this pattern. Can be used multiple times.")
+	rootCmd.PersistentFlags().StringVarP(&cfg.Output, "output", "o", "", "Output to a file instead of the clipboard.")
+	rootCmd.PersistentFlags().BoolVarP(&cfg.IncludeTree, "tree", "t", false, "Include a directory tree structure at the top of the output.")
+	rootCmd.PersistentFlags().BoolVarP(&cfg.UseXML, "xml", "x", false, "Format output in XML (<file path='...'>) instead of Markdown.")
+	rootCmd.PersistentFlags().BoolVarP(&cfg.PrintToStdout, "stdout", "s", false, "Print output to stdout instead of clipboard.")
+	rootCmd.PersistentFlags().BoolVarP(&cfg.ExcludeTests, "no-tests", "n", false, "Exclude test files (e.g., _test.go, .spec.ts).")
+
+	// Version flag is automatic with Cobra if we set Version field, but let's leave it for now.
+
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+}
+
+
+---
+
+### File: internal/app/app.go ###
+package app
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"time"
+
+	"github.com/mattn/go-isatty"
+	"github.com/nessaee/concat/internal/config"
+	"github.com/nessaee/concat/internal/core"
+	"github.com/nessaee/concat/internal/infra"
+)
+
+// Run is the main application entry point
+func Run(cfg *config.Config) error {
+	// 1. Initialize Filter
+	filter := core.NewFilter(cfg.Extensions, cfg.IgnorePatterns, cfg.ExcludeTests)
+
+	// 2. Initialize Components
+	concatenator := core.NewConcatenator(filter, cfg)
+	clipboard := infra.NewClipboard()
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+
+	// 3. Generate Header
+	var outputBuilder string
+	header := fmt.Sprintf("---\nProject: %s\nGenerated: %s\n---\n\n", filepath.Base(cwd), time.Now().Format(time.RFC1123))
+	outputBuilder += header
+
+	// 4. Generate Tree (Optional)
+	if cfg.IncludeTree {
+		fmt.Fprintln(os.Stderr, "> Generating directory tree...")
+		treeGen := core.NewTreeGenerator(filter)
+		treeStr, err := treeGen.Generate(".")
+		if err != nil {
+			return fmt.Errorf("failed to generate tree: %w", err)
+		}
+		outputBuilder += treeStr + "\n---\n\n"
+	}
+
+	// 5. Process Files
+	fmt.Fprintln(os.Stderr, "> Searching for files to process...")
+	content, count, size, err := concatenator.Process(".")
+	if err != nil {
+		return fmt.Errorf("processing failed: %w", err)
+	}
+	outputBuilder += content
+
+	// 6. Output
+	// Logic: If -s flag is explicitly set OR stdout is a pipe (not a TTY), use Stdout.
+	isPipe := !isatty.IsTerminal(os.Stdout.Fd()) && !isatty.IsCygwinTerminal(os.Stdout.Fd())
+
+	if cfg.PrintToStdout || isPipe {
+		fmt.Print(outputBuilder)
+		// Only print the "success" log to Stderr if we are actually in a terminal,
+		// otherwise we pollute the logs of whatever is consuming the pipe.
+		if !isPipe {
+			estTokens := size / 4
+			fmt.Fprintf(os.Stderr, "✓ Output %d files (%d bytes, ~%d tokens) to stdout.\n", count, size, estTokens)
+		}
+	} else if cfg.Output != "" {
+		err := os.WriteFile(cfg.Output, []byte(outputBuilder), 0644)
+		if err != nil {
+			return fmt.Errorf("failed to write output file: %w", err)
+		}
+		estTokens := size / 4
+		fmt.Printf("✓ Wrote %d files (%d bytes, ~%d tokens) to '%s'.\n", count, size, estTokens, cfg.Output)
+	} else {
+		err := clipboard.WriteAll(outputBuilder)
+		if err != nil {
+			return fmt.Errorf("failed to copy to clipboard: %w", err)
+		}
+		estTokens := size / 4
+		fmt.Printf("✓ Copied %d files (%d bytes, ~%d tokens) to clipboard.\n", count, size, estTokens)
+	}
+
+	return nil
+}
+
+
+---
+
+### File: internal/config/config.go ###
+package config
+
+type Config struct {
+	Extensions     []string
+	IgnorePatterns []string
+	Output         string
+	IncludeTree    bool
+	UseXML         bool
+	PrintToStdout  bool
+	ExcludeTests   bool
+}
+
+
+---
+
+### File: internal/core/binary.go ###
+package core
+
+import (
+	"bytes"
+)
+
+// isBinary checks if the data is likely binary by looking for null bytes
+// in the first 8000 bytes (similar to git's heuristic).
+func isBinary(content []byte) bool {
+	limit := 8000
+	if len(content) < limit {
+		limit = len(content)
+	}
+	return bytes.IndexByte(content[:limit], 0) != -1
+}
+
+
+---
+
+### File: internal/core/concatenator.go ###
+package core
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/nessaee/concat/internal/config"
+)
+
+// Concatenator handles finding and reading files
+type Concatenator struct {
+	filter *Filter
+	config *config.Config
+}
+
+// NewConcatenator creates a new Concatenator
+func NewConcatenator(filter *Filter, cfg *config.Config) *Concatenator {
+	return &Concatenator{filter: filter, config: cfg}
+}
+
+// Process walks the directory and returns the formatted content
+func (c *Concatenator) Process(root string) (string, int, int64, error) {
+	var sb strings.Builder
+	var count int
+	var totalSize int64
+
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Handle "."
+		if path == root {
+			return nil
+		}
+
+		relPath, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+
+		// We rely on ShouldProcess to handle both Ignores and Extensions
+		if !c.filter.ShouldProcess(relPath, d.IsDir()) {
+			if d.IsDir() {
+				// If directory is ignored, skip it
+				if c.filter.IsIgnored(relPath, true) {
+					return filepath.SkipDir
+				}
+				// If directory is not ignored but passed (e.g. just a folder traversal), continue
+				return nil
+			}
+			// File not ignored but extension doesn't match
+			return nil
+		}
+
+		if !d.IsDir() {
+			info, err := d.Info()
+			if err != nil {
+				return err
+			}
+
+			content, err := os.ReadFile(path)
+			if err != nil {
+				return fmt.Errorf("failed to read %s: %w", path, err)
+			}
+
+			// Binary Check: Skip files that look binary to save tokens and avoid garbage output
+			if isBinary(content) {
+				fmt.Fprintf(os.Stderr, "⚠ Skipping binary file: %s\n", relPath)
+				return nil
+			}
+
+			contentStr := string(content)
+
+			if c.config.UseXML {
+				sb.WriteString(fmt.Sprintf("<file path=\"%s\">\n", relPath))
+				sb.WriteString(contentStr)
+				sb.WriteString("\n</file>\n")
+			} else {
+				sb.WriteString(fmt.Sprintf("### File: %s ###\n", relPath))
+				sb.WriteString(contentStr)
+				sb.WriteString("\n\n---\n\n")
+			}
+
+			count++
+			totalSize += info.Size()
+		}
+
+		return nil
+	})
+
+	return sb.String(), count, totalSize, err
+}
+
+
+---
+
+### File: internal/core/concatenator_test.go ###
+package core
+
+import (
+	"bytes"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/nessaee/concat/internal/config"
+)
+
+func TestConcatenator_Process(t *testing.T) {
+	// Setup temporary directory
+	tmpDir, err := os.MkdirTemp("", "concat_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create test files
+	files := map[string]string{
+		"main.go": `package main
+
+func main() {
+
+
+}
+`,
+		"binary.bin": string([]byte{0x00, 0x01, 0x02}), // Null byte = binary
+		"ignored.log": "log content",
+	}
+
+	for name, content := range files {
+		path := filepath.Join(tmpDir, name)
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Setup Filter and Config
+	cfg := &config.Config{
+		Extensions:     []string{"go", "bin", "log"},
+		IgnorePatterns: []string{"*.log"},
+	}
+	filter := NewFilter(cfg.Extensions, cfg.IgnorePatterns, false)
+	concatenator := NewConcatenator(filter, cfg)
+
+	// Run Process
+	output, count, _, err := concatenator.Process(tmpDir)
+	if err != nil {
+		t.Fatalf("Process failed: %v", err)
+	}
+
+	// Assertions
+	if count != 1 {
+		t.Errorf("Expected 1 processed file (main.go), got %d", count)
+	}
+
+	// Check if binary was skipped (implied by count=1 if logs are ignored)
+	if strings.Contains(output, "binary.bin") {
+		t.Error("Output contains binary file that should have been skipped")
+	}
+
+	// Check if log was ignored
+	if strings.Contains(output, "ignored.log") {
+		t.Error("Output contains ignored log file")
+	}
+
+	// Check Content Integrity (No Compact Check anymore)
+	if !strings.Contains(output, "func main() {") {
+		t.Error("Output missing main function")
+	}
+}
+
+func TestIsBinary(t *testing.T) {
+	tests := []struct {
+		name     string
+		content  []byte
+		expected bool
+	}{
+		{"Text", []byte("Hello World"), false},
+		{"Binary", []byte{0x00, 0xFF}, true},
+		{"LargeText", bytes.Repeat([]byte("A"), 10000), false},
+		{"LargeBinary", append(bytes.Repeat([]byte("A"), 100), 0x00), true}, // Null byte within limit
+	}
+
+	for _, tt := range tests {
+		if got := isBinary(tt.content); got != tt.expected {
+			t.Errorf("%s: expected %v, got %v", tt.name, tt.expected, got)
+		}
+	}
+}
+
+
+---
+
+### File: internal/core/filter.go ###
+package core
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+
+	ignore "github.com/sabhiram/go-gitignore"
+)
+
+// Filter handles file inclusion and exclusion logic
+type Filter struct {
+	extensions   map[string]struct{}
+	matchers     []*ignore.GitIgnore
+	excludeTests bool
+}
+
+// NewFilter creates a new Filter
+func NewFilter(extensions []string, userPatterns []string, excludeTests bool) *Filter {
+	extMap := make(map[string]struct{})
+	for _, ext := range extensions {
+		cleanExt := strings.TrimPrefix(ext, ".")
+		extMap[cleanExt] = struct{}{}
+	}
+
+	var matchers []*ignore.GitIgnore
+
+	// 1. System Constraints (Hard Blocks: Binaries, Git internals)
+	// These are technically unreadable or dangerous to cat.
+	systemIgnores := []string{
+		".git",
+		".DS_Store",
+		"*.exe",
+		"*.dll",
+		"*.so",
+		"*.dylib",
+		"__pycache__",
+		".venv",
+		"venv",
+		"node_modules",
+		"target",
+		"dist",
+		"build",
+		"*.log",
+		"*.swp",
+		".idea",
+		".vscode",
+		"vendor",
+	}
+	matchers = append(matchers, ignore.CompileIgnoreLines(systemIgnores...))
+
+	// 2. Domain Opinions (Soft Blocks: Lockfiles, Noise)
+	// These are text files we usually don't want, but might need.
+	noiseIgnores := []string{
+		"package-lock.json",
+		"yarn.lock",
+		"pnpm-lock.yaml",
+		"go.sum",
+		"Cargo.lock",
+		"*.svg",
+		"*.png",
+		"*.jpg",
+		"*.ico",
+		"*.min.js",
+		"*.min.css",
+		"*.map",
+	}
+
+	// LOGIC: Only add a noise ignore if the user did NOT explicitly request it.
+	var activeNoise []string
+	for _, pattern := range noiseIgnores {
+		// Heuristic: Check if the pattern's extension is in the requested list
+		patternExt := strings.TrimPrefix(filepath.Ext(pattern), ".")
+		// If it's a file like "go.sum", ext is "sum".
+		// If it's "*.svg", ext is "svg".
+		if _, requested := extMap[patternExt]; !requested {
+			activeNoise = append(activeNoise, pattern)
+		}
+	}
+	matchers = append(matchers, ignore.CompileIgnoreLines(activeNoise...))
+
+	// 3. User Patterns & .gitignore (Standard behavior)
+	// Add defaultIgnores that were previously there if not covered?
+	// The previous list had: .git, node_modules, __pycache__, .venv, venv, target, dist, build, *.log, *.lock, *.swp, .DS_Store
+	// dev tools: .idea, .vscode, vendor
+	// cost saving: locks, media, mins.
+	// I think I covered most.
+	
+	allPatterns := append([]string{}, userPatterns...)
+	// We don't need to append defaultIgnores again as we split them.
+	
+	m1 := ignore.CompileIgnoreLines(allPatterns...)
+	matchers = append(matchers, m1)
+
+	// 2. .gitignore if exists
+	if _, err := os.Stat(".gitignore"); err == nil {
+		m2, err := ignore.CompileIgnoreFile(".gitignore")
+		if err == nil {
+			matchers = append(matchers, m2)
+		}
+	}
+
+	return &Filter{
+		extensions:   extMap,
+		matchers:     matchers,
+		excludeTests: excludeTests,
+	}
+}
+
+// HasValidExtension checks if the filename has a valid extension
+func (f *Filter) HasValidExtension(filename string) bool {
+	ext := filepath.Ext(filename)
+	ext = strings.TrimPrefix(ext, ".")
+	_, ok := f.extensions[ext]
+	return ok
+}
+
+// IsTestFile checks if the file is a test file based on common conventions
+func (f *Filter) IsTestFile(path string) bool {
+	base := strings.ToLower(filepath.Base(path))
+	return strings.HasSuffix(base, "_test.go") || // Go
+		strings.HasSuffix(base, ".test.js") || // JS/TS
+		strings.HasSuffix(base, ".spec.js") || // JS/TS
+		strings.HasSuffix(base, ".test.ts") || // JS/TS
+		strings.HasSuffix(base, ".spec.ts") || // JS/TS
+		strings.HasPrefix(base, "test_") // Python
+}
+
+// ShouldProcess returns true if the file should be processed (included)
+// path should be relative to the root
+func (f *Filter) ShouldProcess(path string, isDir bool) bool {
+	if f.IsIgnored(path, isDir) {
+		return false
+	}
+
+	if isDir {
+		return true
+	}
+
+	// NEW: Test Check
+	if f.excludeTests && f.IsTestFile(path) {
+		return false
+	}
+
+	// 2. Check extension inclusion
+	if f.HasValidExtension(path) {
+		return true
+	}
+
+	return false
+}
+
+// IsIgnored returns true if the path matches any ignore pattern
+func (f *Filter) IsIgnored(path string, isDir bool) bool {
+	for _, m := range f.matchers {
+		if m.MatchesPath(path) {
+			return true
+		}
+		if isDir {
+			if m.MatchesPath(path + "/") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+
+---
+
+### File: internal/core/filter_test.go ###
+package core
+
+import (
+	"testing"
+)
+
+func TestFilter_IsTestFile(t *testing.T) {
+	filter := &Filter{
+		excludeTests: true,
+	}
+
+	tests := []struct {
+		path     string
+		expected bool
+	}{
+		{"main.go", false},
+		{"main_test.go", true},
+		{"utils.js", false},
+		{"utils.test.js", true},
+		{"utils.spec.js", true},
+		{"component.ts", false},
+		{"component.test.ts", true},
+		{"component.spec.ts", true},
+		{"script.py", false},
+		{"test_script.py", true},
+		{"random_file.txt", false},
+	}
+
+	for _, tt := range tests {
+		if got := filter.IsTestFile(tt.path); got != tt.expected {
+			t.Errorf("IsTestFile(%q) = %v; want %v", tt.path, got, tt.expected)
+		}
+	}
+}
+
+
+---
+
+### File: internal/core/tree.go ###
+package core
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+)
+
+// TreeGenerator generates a directory tree structure
+type TreeGenerator struct {
+	filter *Filter
+}
+
+// NewTreeGenerator creates a new TreeGenerator
+func NewTreeGenerator(filter *Filter) *TreeGenerator {
+	return &TreeGenerator{filter: filter}
+}
+
+// Generate returns the tree structure as a string
+func (t *TreeGenerator) Generate(root string) (string, error) {
+	var sb strings.Builder
+	sb.WriteString("### Directory Structure ###\n")
+	sb.WriteString(".\n")
+
+	// Use recursive generation
+	treeStr, err := t.generateRecursive(root, "")
+	if err != nil {
+		return "", err
+	}
+	sb.WriteString(treeStr)
+	return sb.String(), nil
+}
+
+func (t *TreeGenerator) generateRecursive(dir string, prefix string) (string, error) {
+	var sb strings.Builder
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return "", err
+	}
+
+	// Filter entries first to know which is last
+	var filtered []os.DirEntry
+	for _, e := range entries {
+		path := filepath.Join(dir, e.Name())
+
+		// Handle relative path for filter if possible, or assume relative execution
+		// If dir is ".", path is "foo".
+		// If dir is "foo", path is "foo/bar".
+		// This works for filter matchers usually.
+
+		if t.filter.IsIgnored(path, e.IsDir()) {
+			continue
+		}
+		
+		// NEW: Tree Pruning - Only show files that match requested extensions
+		if !e.IsDir() {
+			if !t.filter.HasValidExtension(e.Name()) {
+				continue
+			}
+		}
+
+		filtered = append(filtered, e)
+	}
+
+	for i, e := range filtered {
+		isLast := i == len(filtered)-1
+		connector := "├── "
+		newPrefix := prefix + "│   "
+		if isLast {
+			connector = "└── "
+			newPrefix = prefix + "    "
+		}
+
+		sb.WriteString(prefix + connector + e.Name() + "\n")
+
+		if e.IsDir() {
+			path := filepath.Join(dir, e.Name())
+			subTree, err := t.generateRecursive(path, newPrefix)
+			if err != nil {
+				return "", err
+			}
+			sb.WriteString(subTree)
+		}
+	}
+
+	return sb.String(), nil
+}
+
+
+---
+
+### File: internal/infra/clipboard.go ###
+package infra
+
+import (
+	"github.com/atotto/clipboard"
+)
+
+// Clipboard handles clipboard operations
+type Clipboard struct{}
+
+// NewClipboard creates a new Clipboard instance
+func NewClipboard() *Clipboard {
+	return &Clipboard{}
+}
+
+// WriteAll writes the string to the system clipboard
+func (c *Clipboard) WriteAll(text string) error {
+	return clipboard.WriteAll(text)
+}
+
+
+---
+
