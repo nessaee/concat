@@ -17,7 +17,7 @@ func main() {
 	rootCmd := &cobra.Command{
 		Use:   "concat",
 		Short: "Concatenates project files for LLM context",
-		Long: `Project Concatenator v0.1.1
+		Long: `Project Concatenator v0.1.2
 Concatenates project files and copies the result to the clipboard or a file.
 Designed for easily grabbing project context for LLMs.`,
 		Run: func(cmd *cobra.Command, args []string) {
@@ -26,6 +26,14 @@ Designed for easily grabbing project context for LLMs.`,
 				fmt.Println("Error: You must specify at least one file type to include with -p.")
 				cmd.Usage()
 				os.Exit(1)
+			}
+
+			// Clean extensions immediately upon receiving flags
+			for i, ext := range cfg.Extensions {
+				// Trim dot if user included it (e.g. .go -> go)
+				if len(ext) > 0 && ext[0] == '.' {
+					cfg.Extensions[i] = ext[1:]
+				}
 			}
 
 			if err := app.Run(&cfg); err != nil {

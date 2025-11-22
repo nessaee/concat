@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/nessaee/concat/internal/config"
+	"github.com/nessaee/concat/internal/protocol"
 )
 
 func TestConcatenator_Process(t *testing.T) {
@@ -44,13 +45,16 @@ func main() {
 		IgnorePatterns: []string{"*.log"},
 	}
 	filter := NewFilter(cfg.Extensions, cfg.IgnorePatterns, false)
-	concatenator := NewConcatenator(filter, cfg)
+	formatter := &protocol.MarkdownFormatter{}
+	concatenator := NewConcatenator(filter, cfg, formatter)
 
 	// Run Process
-	output, count, _, err := concatenator.Process(tmpDir)
+	var buf bytes.Buffer
+	count, _, err := concatenator.Process(tmpDir, &buf)
 	if err != nil {
 		t.Fatalf("Process failed: %v", err)
 	}
+	output := buf.String()
 
 	// Assertions
 	if count != 1 {

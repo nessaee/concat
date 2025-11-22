@@ -2,9 +2,9 @@ package core
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/nessaee/concat/internal/config"
 	"github.com/nessaee/concat/internal/protocol"
@@ -12,18 +12,22 @@ import (
 
 // Concatenator handles finding and reading files
 type Concatenator struct {
-	filter *Filter
-	config *config.Config
+	filter    *Filter
+	config    *config.Config
+	formatter protocol.Formatter
 }
 
 // NewConcatenator creates a new Concatenator
-func NewConcatenator(filter *Filter, cfg *config.Config) *Concatenator {
-	return &Concatenator{filter: filter, config: cfg}
+func NewConcatenator(filter *Filter, cfg *config.Config, formatter protocol.Formatter) *Concatenator {
+	return &Concatenator{
+		filter:    filter,
+		config:    cfg,
+		formatter: formatter,
+	}
 }
 
 // Process walks the directory and returns the formatted content
-func (c *Concatenator) Process(root string) (string, int, int64, error) {
-	var sb strings.Builder
+func (c *Concatenator) Process(root string, w io.Writer) (int, int64, error) {
 	var count int
 	var totalSize int64
 
@@ -62,28 +66,39 @@ func (c *Concatenator) Process(root string) (string, int, int64, error) {
 				return err
 			}
 
-			content, err := os.ReadFile(path)
+			// Open file instead of ReadFile
+			file, err := os.Open(path)
 			if err != nil {
-				return fmt.Errorf("failed to read %s: %w", path, err)
+				return fmt.Errorf("failed to open %s: %w", path, err)
+			}
+			defer file.Close()
+
+			// Binary Check: Read small buffer first
+			// 8192 bytes (8KB) is a safe bet for detection without reading huge files
+			header := make([]byte, 8192)
+			n, err := file.Read(header)
+			if err != nil && err != io.EOF {
+				return fmt.Errorf("failed to read header of %s: %w", path, err)
 			}
 
-			// Binary Check: Skip files that look binary to save tokens and avoid garbage output
-			if isBinary(content) {
+			if isBinary(header[:n]) {
 				fmt.Fprintf(os.Stderr, "⚠ Skipping binary file: %s\n", relPath)
 				return nil
 			}
 
-			contentStr := string(content)
-
-			if c.config.UseXML {
-				sb.WriteString(protocol.FormatHeaderXML(relPath) + "\n")
-				sb.WriteString(contentStr)
-				sb.WriteString("\n" + protocol.MarkerXMLEnd + "\n")
-			} else {
-				sb.WriteString(protocol.FormatHeaderMD(relPath) + "\n")
-				sb.WriteString(contentStr)
-				sb.WriteString("\n\n---\n\n")
+			// Reset file pointer to start
+			if _, err := file.Seek(0, 0); err != nil {
+				return fmt.Errorf("failed to seek %s: %w", path, err)
 			}
+
+			c.formatter.WriteHeader(w, relPath)
+
+			// Copy content to writer
+			if _, err := io.Copy(w, file); err != nil {
+				return fmt.Errorf("failed to copy content of %s: %w", path, err)
+			}
+
+			c.formatter.WriteFooter(w)
 
 			count++
 			totalSize += info.Size()
@@ -92,5 +107,5 @@ func (c *Concatenator) Process(root string) (string, int, int64, error) {
 		return nil
 	})
 
-	return sb.String(), count, totalSize, err
+	return count, totalSize, err
 }

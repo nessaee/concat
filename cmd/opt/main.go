@@ -19,7 +19,7 @@ func main() {
 	rootCmd := &cobra.Command{
 		Use:   "opt",
 		Short: "Stream optimizer for LLM context",
-		Long: `opt (Optimizer) v0.1.1
+		Long: `opt (Optimizer) v0.1.2
 Refines text streams for LLM consumption.
 Handles cost estimation, whitespace compaction, and license stripping.`,
 		Run: func(cmd *cobra.Command, args []string) {
@@ -35,8 +35,7 @@ Handles cost estimation, whitespace compaction, and license stripping.`,
 			// If --cost is set, we print analysis to Stderr.
 			if flagCost {
 				tokens := len(content) / 4 // Approximation
-				cost := float64(tokens) * 0.000000075 // Gemini Flash Approx
-				fmt.Fprintf(os.Stderr, "Tokens: ~%d | Est Cost: ~$%.5f (Gemini Flash)\n", tokens, cost)
+				fmt.Fprintf(os.Stderr, "Tokens: ~%d\n", tokens)
 			}
 
 			// 3. Apply Transformations
@@ -54,7 +53,7 @@ Handles cost estimation, whitespace compaction, and license stripping.`,
 
 	rootCmd.PersistentFlags().BoolVarP(&flagCompact, "compact", "c", false, "Reduce whitespace to save tokens.")
 	rootCmd.PersistentFlags().BoolVar(&flagStripHeaders, "strip-headers", false, "Strip copyright/license headers.")
-	rootCmd.PersistentFlags().BoolVar(&flagCost, "cost", false, "Estimate tokens and cost (output to stderr).")
+	rootCmd.PersistentFlags().BoolVar(&flagCost, "cost", false, "Estimate tokens (output to stderr).")
 	rootCmd.PersistentFlags().BoolVar(&flagCost, "dry-run", false, "Alias for --cost")
 
 	if err := rootCmd.Execute(); err != nil {

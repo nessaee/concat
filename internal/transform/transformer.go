@@ -13,28 +13,31 @@ type Options struct {
 
 // Transformer handles text processing
 type Transformer struct {
-	options Options
+	options      Options
+	multiNewline *regexp.Regexp
+	headerBlock  *regexp.Regexp
+	headerLine   *regexp.Regexp
+	headerHash   *regexp.Regexp
+	reMd         *regexp.Regexp
+	reXml        *regexp.Regexp
 }
 
 // NewTransformer creates a new Transformer instance
 func NewTransformer(opts Options) *Transformer {
-	return &Transformer{options: opts}
+	return &Transformer{
+		options: opts,
+		// Handle Windows line endings by matching \r?
+		multiNewline: regexp.MustCompile(`(\r?\n){3,}`),
+		headerBlock:  regexp.MustCompile(`(?s)^\s*/\*.*?(Copyright|License).*?\*/\s*`),
+		headerLine:   regexp.MustCompile(`(?s)^(//.*(Copyright|License).*\n)+`),
+		headerHash:   regexp.MustCompile(`(?s)^(#.*(Copyright|License).*\n)+`),
+		// Protocol-aware Regexes
+		// Protocol: ### File: %s ###
+		reMd: regexp.MustCompile(`### File: (.*?) ###\s*\r?\n`),
+		// Protocol: <file path="%s">
+		reXml: regexp.MustCompile(`<file path="(.*?)">\s*\r?\n`),
+	}
 }
-
-var (
-	// Handle Windows line endings by matching \r?
-	multiNewline = regexp.MustCompile(`(\r?\n){3,}`)
-	headerBlock  = regexp.MustCompile(`(?s)^\s*/\*.*?(Copyright|License).*?\*/\s*`)
-	headerLine   = regexp.MustCompile(`(?s)^(//.*(Copyright|License).*\n)+`)
-	headerHash   = regexp.MustCompile(`(?s)^(#.*(Copyright|License).*\n)+`)
-
-	// Protocol-aware Regexes
-	// Protocol: ### File: %s ###
-	reMd = regexp.MustCompile(`### File: (.*?) ###\s*\r?\n`)
-
-	// Protocol: <file path="%s">
-	reXml = regexp.MustCompile(`<file path="(.*?)">\s*\r?\n`)
-)
 
 // Process applies all configured transformations to the content
 func (t *Transformer) Process(content string) string {
@@ -53,18 +56,18 @@ func (t *Transformer) Process(content string) string {
 }
 
 func (t *Transformer) removeExcessWhitespace(content string) string {
-	return multiNewline.ReplaceAllString(content, "\n\n")
+	return t.multiNewline.ReplaceAllString(content, "\n\n")
 }
 
 func (t *Transformer) stripLicense(content string) string {
 	// Try Markdown Header first
-	if reMd.MatchString(content) {
-		return t.splitAndClean(content, reMd)
+	if t.reMd.MatchString(content) {
+		return t.splitAndClean(content, t.reMd)
 	}
 
 	// Try XML Header
-	if reXml.MatchString(content) {
-		return t.splitAndClean(content, reXml)
+	if t.reXml.MatchString(content) {
+		return t.splitAndClean(content, t.reXml)
 	}
 
 	// Fallback (e.g. single file input without header)
@@ -91,8 +94,8 @@ func (t *Transformer) splitAndClean(content string, re *regexp.Regexp) string {
 }
 
 func (t *Transformer) stripLicenseSingle(content string) string {
-	c := headerBlock.ReplaceAllString(content, "")
-	c = headerLine.ReplaceAllString(c, "")
-	c = headerHash.ReplaceAllString(c, "")
+	c := t.headerBlock.ReplaceAllString(content, "")
+	c = t.headerLine.ReplaceAllString(c, "")
+	c = t.headerHash.ReplaceAllString(c, "")
 	return strings.TrimSpace(c)
 }
