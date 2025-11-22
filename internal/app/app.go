@@ -17,7 +17,7 @@ func Run(cfg *config.Config) error {
 	filter := core.NewFilter(cfg.Extensions, cfg.IgnorePatterns)
 
 	// 2. Initialize Components
-	concatenator := core.NewConcatenator(filter)
+	concatenator := core.NewConcatenator(filter, cfg)
 	clipboard := infra.NewClipboard()
     
     cwd, err := os.Getwd()
@@ -55,13 +55,15 @@ func Run(cfg *config.Config) error {
 		if err != nil {
 			return fmt.Errorf("failed to write output file: %w", err)
 		}
-		fmt.Printf("✓ Wrote %d files (%d bytes) to '%s'.\n", count, size, cfg.Output)
+		estTokens := size / 4
+		fmt.Printf("✓ Wrote %d files (%d bytes, ~%d tokens) to '%s'.\n", count, size, estTokens, cfg.Output)
 	} else {
 		err := clipboard.WriteAll(outputBuilder)
 		if err != nil {
 			return fmt.Errorf("failed to copy to clipboard: %w", err)
 		}
-		fmt.Printf("✓ Copied %d files (%d bytes) to clipboard.\n", count, size)
+		estTokens := size / 4
+		fmt.Printf("✓ Copied %d files (%d bytes, ~%d tokens) to clipboard.\n", count, size, estTokens)
 	}
 
 	return nil

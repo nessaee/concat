@@ -5,16 +5,19 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/nessaee/concat/internal/config"
 )
 
 // Concatenator handles finding and reading files
 type Concatenator struct {
 	filter *Filter
+	config *config.Config
 }
 
 // NewConcatenator creates a new Concatenator
-func NewConcatenator(filter *Filter) *Concatenator {
-	return &Concatenator{filter: filter}
+func NewConcatenator(filter *Filter, cfg *config.Config) *Concatenator {
+	return &Concatenator{filter: filter, config: cfg}
 }
 
 // Process walks the directory and returns the formatted content
@@ -63,9 +66,15 @@ func (c *Concatenator) Process(root string) (string, int, int64, error) {
 				return fmt.Errorf("failed to read %s: %w", path, err)
 			}
 
-			sb.WriteString(fmt.Sprintf("### File: %s ###\n", relPath))
-			sb.Write(content)
-			sb.WriteString("\n\n---\n\n")
+			if c.config.UseXML {
+				sb.WriteString(fmt.Sprintf("<file path=\"%s\">\n", relPath))
+				sb.Write(content)
+				sb.WriteString("\n</file>\n")
+			} else {
+				sb.WriteString(fmt.Sprintf("### File: %s ###\n", relPath))
+				sb.Write(content)
+				sb.WriteString("\n\n---\n\n")
+			}
 
 			count++
 			totalSize += info.Size()
