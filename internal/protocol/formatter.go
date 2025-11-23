@@ -1,6 +1,7 @@
 package protocol
 
 import (
+	"encoding/xml"
 	"fmt"
 	"io"
 )
@@ -26,9 +27,18 @@ func (f *MarkdownFormatter) WriteFooter(w io.Writer) {
 type XMLFormatter struct{}
 
 func (f *XMLFormatter) WriteHeader(w io.Writer, path string) {
-	fmt.Fprintf(w, MarkerXMLStart+"\n", path)
+	// Manually construct the tag to ensure the path attribute is escaped
+	// We can't use xml.Encoder easily here because we aren't encoding the whole element structure at once,
+	// just the opening tag.
+	// <file path="...">
+	fmt.Fprint(w, "<file path=\"")
+	if err := xml.EscapeText(w, []byte(path)); err != nil {
+		// Fallback to raw string if escaping fails (should not happen for strings)
+		fmt.Fprint(w, path)
+	}
+	fmt.Fprint(w, "\">\n")
 }
 
 func (f *XMLFormatter) WriteFooter(w io.Writer) {
-	fmt.Fprintf(w, "\n"+MarkerXMLEnd+"\n")
+	fmt.Fprint(w, "\n</file>\n")
 }
