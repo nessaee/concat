@@ -1,97 +1,93 @@
-# concat & opt Developer Runbook
+# Developer Runbook
 
-This runbook distills the essential workflows for developing, building, and releasing the `concat` suite.
+This document serves as the comprehensive guide for developing, testing, and releasing the `concat` project.
 
-## 1. Local Development & Testing
+## 1. Project Architecture
 
-**Build binaries:**
+The project follows a modular CLI architecture, splitting concerns into distinct packages:
+
+*   `cmd/`: Entry points (`concat`, `opt`). Responsible for CLI flag parsing (Cobra).
+*   `internal/app/`: High-level orchestration. Connects config, core logic, and UI.
+*   `internal/core/`: Pure domain logic (File walking, Tree generation, Filtering).
+*   `internal/transform/`: Stream processing logic for `opt` (Token counting, Regex replacements).
+*   `internal/protocol/`: Output formatting strategies (Markdown vs XML).
+
+## 2. Local Development
+
+### Prerequisites
+*   Go 1.21+
+
+### Build Commands
+We use standard Go tooling.
+
 ```bash
-# Build both tools
-go build -o concat cmd/concat/main.go
-go build -o opt cmd/opt/main.go
+# Build concat
+go build -o bin/concat cmd/concat/main.go
+
+# Build opt
+go build -o bin/opt cmd/opt/main.go
 ```
 
-**Run from source (Pipeline):**
+### Running from Source
+You can test the "Power Pipe" without building binaries:
+
 ```bash
-go run cmd/concat/main.go -p go | go run cmd/opt/main.go -c
+go run cmd/concat/main.go -p go | go run cmd/opt/main.go --cost
 ```
 
-**Run Unit Tests:**
+## 3. Testing Strategy
+
+We employ both unit tests and end-to-end (E2E) integration tests.
+
+### Unit Tests
+Run these frequently during development.
 ```bash
 go test ./...
 ```
 
-**Run E2E Tests (Integration):**
-This compiles fresh binaries and tests the pipe logic.
+### End-to-End (E2E) Tests
+Located in `tests/e2e_test.go`. These tests compile the binaries and execute them against a real file system to verify the pipeline behaves as expected.
+
+**Run E2E Tests:**
 ```bash
 go test -v ./tests/...
 ```
 
-## 2. Installation (Local)
+## 4. Release Process
 
-To make the suite accessible globally on your machine:
+Releases are automated via [GoReleaser](https://goreleaser.com/).
 
-```bash
-# Install both tools to $GOPATH/bin
-go install ./cmd/concat
-go install ./cmd/opt
-```
+### Pre-Release Checklist
+1.  Run `go mod tidy`.
+2.  Ensure all tests pass: `go test ./...` and `go test -v ./tests/...`.
+3.  Update `README.md` if arguments or flags have changed.
 
-**Verify:**
-```bash
-concat --help
-opt --help
-```
+### Creating a Release
 
-## 3. Release Process (GoReleaser)
-
-**Prerequisites:**
-- `goreleaser` installed (`go install github.com/goreleaser/goreleaser/v2@latest`)
-- `GITHUB_TOKEN` environment variable set.
-
-**Steps:**
-
-1.  **Snapshot Release (Test Build):**
-    Builds artifacts in `dist/` without publishing.
+1.  **Tag the version:**
+    Semantic versioning is strictly enforced (vX.Y.Z).
     ```bash
+    git tag -a v0.1.6 -m "feat: add XML support"
+    git push origin v0.1.6
+    ```
+
+2.  **GoReleaser:**
+    The CI/CD pipeline (GitHub Actions) should handle this automatically on tag push. To run locally:
+    ```bash
+    # Snapshot release (does not publish)
     goreleaser release --snapshot --clean
     ```
 
-2.  **Official Release:**
-    Creates a tag, pushes it, and publishes binaries to GitHub Releases.
-    ```bash
-    # 1. Tag the version
-    git tag -a v0.1.4 -m "Release v0.1.4"
+## 5. Troubleshooting
 
-    # 2. Push tag
-    git push origin v0.1.4
+### Clipboard Issues
+*   **Linux (Wayland):** `wl-copy` must be installed.
+*   **Linux (X11):** `xclip` or `xsel` must be installed.
+*   **Headless Environments:** The tool will detect if no clipboard is available and may fallback to stdout or error. Use `-s` / `--stdout` in scripts.
 
-    # 3. Release
-    goreleaser release --clean
-    ```
-
-## 4. Troubleshooting
-
-*   **Clipboard issues (Linux):** Ensure `wl-copy` (Wayland) or `xclip` (X11) is installed.
-    *   `sudo apt install wl-clipboard` or `sudo apt install xclip`
-*   **Permission Denied:** Ensure `~/.local/bin/concat` has execution permissions (`chmod +x ~/.local/bin/concat`).
-
-## 5. Optimization & Cost Saving
-
-To minimize token usage when feeding LLMs (like Gemini or Claude), follow these guidelines:
-
-**1. Use `opt` (Companion Tool):**
-Strip excessive whitespace and headers.
+### Performance Profiling
+If directory traversal seems slow:
 ```bash
-concat -p go | opt --compact --strip-headers
-```
-
-**2. Skip the Tree:**
-If you are using tools like `forge` or `files-to-prompt`, the XML/header structure is enough.
-```bash
-# EXPENSIVE (Redundant structure)
-concat -p go -t | forge
-
-# OPTIMIZED (Structure inferred from file paths)
-concat -p go | forge
+go run cmd/concat/main.go -p go --cpuprofile cpu.prof
+go tool pprof cpu.prof
 ```
