@@ -21,7 +21,7 @@ func main() {
 	rootCmd := &cobra.Command{
 		Use:   "opt",
 		Short: "Stream optimizer for LLM context",
-		Long: `opt (Optimizer) v0.1.4
+		Long: `opt (Optimizer) v0.1.5
 Refines text streams for LLM consumption.
 Handles cost estimation, whitespace compaction, and license stripping.`,
 		Run: func(cmd *cobra.Command, args []string) {
