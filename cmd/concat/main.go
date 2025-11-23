@@ -54,6 +54,14 @@ Designed for easily grabbing project context for LLMs.`,
 
 	// Version flag is automatic with Cobra if we set Version field, but let's leave it for now.
 
+	// Load configuration from .concat.yaml if it exists
+	if loadedCfg, err := config.Load(".concat.yaml"); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: Failed to load config: %v\n", err)
+	} else if loadedCfg != nil {
+		// Overwrite defaults with loaded config
+		cfg = *loadedCfg
+	}
+
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
